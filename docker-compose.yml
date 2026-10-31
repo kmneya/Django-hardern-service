@@ -1,0 +1,32 @@
+services:
+  app:
+    build: ./app
+    container_name: django_app
+    env_file: .env
+    # We do NOT expose port 8000 to the outside world. Only Nginx can talk to it.
+    # This is a massive security win. 
+    volumes:
+      - django_data:/app/data
+      - static_volume:/app/staticfiles
+    command: >
+        sh -c "python manage.py collectstatic --noinput &&
+               gunicorn --workers 3 --bind 0.0.0.0:8000 config.wsgi:application"
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy
+    ports:
+      - "80:80"    # For the redirect
+      - "8443:443" # For the secure connection
+    volumes:
+      # Mount our custom config
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount the certs as READ-ONLY. Nginx only needs to read them, not write.
+      - ./certs/server:/etc/nginx/certs:ro
+      - static_volume:/app/staticfiles:ro
+      
+    depends_on:
+      - app
+volumes:
+  django_data:      # <-- Declares the named volume
+  static_volume:    # <-- Declares the named volume

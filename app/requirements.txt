@@ -1,0 +1,10 @@
+asgiref==3.12.1
+Django==6.1.2
+django-formtools==2.7
+django-otp==1.7.5
+django-phonenumber-field==8.5.0
+django-two-factor-auth==1.18.1
+gunicorn==26.2.0
+phonenumbers==8.13.55
+qrcode==8.2
+sqlparse==0.6.0

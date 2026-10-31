@@ -1,0 +1,10 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block branding %}
+<h1 id="site-name"><a href="{% url 'admin:index' %}">Hardened Django Admin</a></h1>
+{% endblock %}
+
+{% block content %}
+  {% block two_factor_content %}{% endblock %}
+{% endblock %}
