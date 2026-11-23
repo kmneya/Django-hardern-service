@@ -1,0 +1,288 @@
+# Django Hardened Service – Cybersecurity Integration Project
+
+A security-hardened web application built with **Django, Docker, Nginx, and OpenSSL**. This project demonstrates the deployment of a secure web service using container isolation, HTTPS encryption, private Public Key Infrastructure (PKI), secure secrets management, and Two-Factor Authentication (2FA).
+
+## Project Overview
+
+The project implements a hardened web environment hosting a custom **Cyber Risk Analyzer** application.
+
+The main security objectives are:
+- Secure communication through HTTPS and TLS.
+- Container isolation between the Django application and Nginx.
+- Protection of administrative access using Two-Factor Authentication.
+- Secure handling of application secrets and credentials.
+- Restriction of unnecessary network exposure.
+- Implementation of a dynamic risk assessment application.
+
+## Technology Stack
+
+| Technology | Purpose |
+|---|---|
+| Python / Django | Backend web application |
+| Gunicorn | Django application server |
+| Nginx | Reverse proxy and TLS termination |
+| Docker | Application containerization |
+| Docker Compose | Multi-container orchestration |
+| OpenSSL | Private Certificate Authority and TLS certificates |
+| SQLite | Application database |
+| django-two-factor-auth | TOTP-based two-factor authentication |
+
+## System Architecture
+
+The application runs using two primary Docker services:
+
+1. **Django Application Container**
+   - Runs Django using Gunicorn.
+   - Executes under a dedicated non-root user.
+   - Accessible internally through the Docker network on port `8000`.
+   - Does not expose application ports directly to the host.
+
+2. **Nginx Container**
+   - Acts as the reverse proxy.
+   - Terminates HTTPS connections.
+   - Serves static files.
+   - Redirects HTTP traffic to HTTPS.
+
+### Architecture Flow
+
+```text
+             User / Browser
+                    |
+                    |
+              HTTPS :8443
+                    |
+                    v
+             NGINX Container
+             (TLS Termination)
+                    |
+                    |
+             Internal Network
+                    |
+                    v
+            Django Container
+              (Gunicorn)
+                    |
+                    v
+              SQLite Database
+```
+
+## Security Implementations
+
+### 1. Private Certificate Authority (CA) and HTTPS
+
+A private Public Key Infrastructure (PKI) was established using OpenSSL.
+
+- A Root CA was generated using a 4096-bit RSA key.
+- The CA private key is encrypted using AES-256.
+- The CA private key is protected using restrictive file permissions (`chmod 600`).
+- Server certificates are signed by the private Root CA.
+- Subject Alternative Names (SAN) include `localhost` and `127.0.0.1`.
+
+**Nginx TLS configuration includes:**
+- TLS 1.2 and TLS 1.3.
+- Disabled older SSL/TLS protocols.
+- HTTP-to-HTTPS redirection.
+- HTTP Strict Transport Security (HSTS).
+
+The application is accessible through HTTPS on host port `8443`.
+
+### 2. Docker Network Isolation
+
+The Django application does not expose its port directly to the host machine.
+
+Instead, communication takes place through the internal Docker bridge network, allowing Nginx to communicate with Django using:
+
+```text
+app:8000
+```
+
+This reduces direct network exposure of the application.
+
+### 3. Least Privilege
+
+The Django container runs using a dedicated non-root user named `appuser`.
+
+This limits the privileges available to a potential attacker if the application container is compromised.
+
+### 4. Django Security Hardening
+
+The following production security settings are implemented:
+
+- `DEBUG = False` – Prevents exposure of detailed error tracebacks.
+- `SECURE_PROXY_SSL_HEADER` – Allows Django to recognize HTTPS connections forwarded by Nginx.
+- `SESSION_COOKIE_SECURE` – Ensures session cookies are transmitted over HTTPS.
+- `CSRF_COOKIE_SECURE` – Protects CSRF cookies by restricting transmission to HTTPS.
+- `CSRF_TRUSTED_ORIGINS` – Explicitly defines trusted application origins.
+
+### 5. Secrets Management
+
+Sensitive application credentials are not hardcoded into the source code.
+
+Environment variables are used to manage:
+- Django secret key.
+- Database credentials.
+- Other sensitive configuration values.
+
+The `.env` file is excluded from version control through `.gitignore` and passed to the container at runtime.
+
+**Important:** Never commit your `.env` file, private CA key, or other sensitive credentials to GitHub.
+
+### 6. Administrative Interface Protection
+
+The default Django administration URL (`/admin/`) was replaced with a custom URL:
+
+```text
+/secure-portal-9x2f/
+```
+
+Additionally, Two-Factor Authentication (TOTP) was implemented using `django-two-factor-auth`.
+
+Administrators must provide:
+1. Their username and password.
+2. A six-digit time-based authentication code generated by an authenticator application.
+
+This provides an additional layer of protection against unauthorized administrative access.
+
+## Cyber Risk Analyzer Application
+
+The project includes a custom dynamic Cyber Risk Analyzer built using Django.
+
+The application allows users to assess potential security risks associated with different assets.
+
+### How It Works
+
+Users provide:
+
+- **Asset Name:** The name of the asset being assessed.
+- **Likelihood:** A value between 1 and 5 representing the likelihood of a risk occurring.
+- **Impact:** A value between 1 and 5 representing the potential impact of the risk.
+
+The backend calculates the risk score dynamically:
+
+```text
+Risk Score = Likelihood × Impact
+```
+
+The resulting score is categorized into one of four risk levels:
+
+- Low
+- Medium
+- High
+- Critical
+
+Administrators can manage risk assessment entries through the protected Django administration interface.
+
+## Getting Started
+
+### Prerequisites
+
+Ensure you have the following installed:
+
+- Python
+- Docker Desktop
+- Docker Compose
+- Git
+- OpenSSL
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/kmneya/Django-hardern-service.git
+```
+
+Navigate into the project directory:
+
+```bash
+cd Django-hardern-service
+```
+
+### 2. Configure Environment Variables
+
+Create a `.env` file in the project root and provide the required configuration.
+
+Example:
+
+```env
+DJANGO_SECRET_KEY=your-secret-key
+DJANGO_DEBUG=False
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
+DJANGO_CSRF_TRUSTED_ORIGINS=https://localhost:8443
+```
+
+Add any additional database credentials required by your project configuration.
+
+Do not use the example secret key in a real deployment.
+
+### 3. Configure TLS Certificates
+
+Ensure that the required Root CA and server certificates have been generated using OpenSSL and are available in the locations configured in Nginx.
+
+The private CA key should be kept secure and must not be exposed through the application container or committed to GitHub.
+
+### 4. Build and Start the Containers
+
+Run:
+
+```bash
+docker compose up --build -d
+```
+
+Check the running containers:
+
+```bash
+docker compose ps
+```
+
+### 5. Access the Application
+
+Open your browser and navigate to:
+
+**Application:**
+
+https://localhost:8443
+
+**Django Administration:**
+
+https://localhost:8443/secure-portal-9x2f/
+
+Because the project uses a private Certificate Authority, you may need to install and trust the Root CA certificate in your operating system's certificate store before the browser recognizes the connection as trusted.
+
+### 6. Stop the Application
+
+To stop the running containers:
+
+```bash
+docker compose down
+```
+
+## Known Limitations
+
+- **Port Mapping:** Docker Desktop on macOS uses host port `8443` mapped to container port `443`, avoiding privileged host port restrictions.
+- **Private CA Trust:** Browsers will initially flag the certificate as untrusted until the Root CA is installed and trusted.
+- **Database:** SQLite is used for simplicity and stored in a Docker named volume. PostgreSQL would be a more suitable choice for a production deployment.
+
+## Learning Outcomes
+
+This project demonstrates practical implementation of:
+
+- Containerization and service isolation.
+- Reverse proxy configuration.
+- HTTPS and TLS certificate management.
+- Private PKI using OpenSSL.
+- Django production security configuration.
+- Environment-based secrets management.
+- Multi-factor authentication.
+- Dynamic Django application development.
+- Defense-in-depth security principles.
+
+## Author
+
+**Kebadiretse Neya (B5X2KV)**
+
+Course: Introduction to Cybersecurity
+
+Assignment: Integration Task
+
+## Repository
+
+[GitHub – Django Hardened Service](https://github.com/kmneya/Django-hardern-service.git)
